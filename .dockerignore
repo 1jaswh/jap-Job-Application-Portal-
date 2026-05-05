@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+
+# Node
+node_modules/
+npm-debug.log
+
+# Go
+vendor/
+*.log
+go.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Build
+dist/
+build/
+*.tsbuildinfo
+
+# Temporary
+tmp/
+temp/
+*.tmp
+
+# Uploads (will be mounted as volume)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Docker
+docker-compose.override.yml
+docker-compose.dev.yml
