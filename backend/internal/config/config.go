@@ -8,18 +8,25 @@ import (
 )
 
 type Config struct {
-	Port        string
-	DBHost      string `mapstructure:"db_host"`
-	DBPort      string `mapstructure:"db_port"`
-	DBUser      string `mapstructure:"db_user"`
-	DBPass      string `mapstructure:"db_password"`
-	DBName      string `mapstructure:"db_name"`
-	DBSSL       string `mapstructure:"db_sslmode"`
-	UploadPath  string `mapstructure:"upload_path"`
-	JWTSecret   string `mapstructure:"jwt_secret"`
-	JWTExpiry   string `mapstructure:"jwt_expiry"`
-	AdminUser   string `mapstructure:"admin_username"`
-	AdminPass   string `mapstructure:"admin_password"`
+	Port         string
+	DBHost       string `mapstructure:"db_host"`
+	DBPort       string `mapstructure:"db_port"`
+	DBUser       string `mapstructure:"db_user"`
+	DBPass       string `mapstructure:"db_password"`
+	DBName       string `mapstructure:"db_name"`
+	DBSSL        string `mapstructure:"db_sslmode"`
+	UploadPath   string `mapstructure:"upload_path"`
+	JWTSecret    string `mapstructure:"jwt_secret"`
+	JWTExpiry    string `mapstructure:"jwt_expiry"`
+	AdminUser    string `mapstructure:"admin_username"`
+	AdminPass    string `mapstructure:"admin_password"`
+	SMTPEnabled  string `mapstructure:"smtp_enabled"`
+	SMTPHost     string `mapstructure:"smtp_host"`
+	SMTPPort     string `mapstructure:"smtp_port"`
+	SMTPUsername string `mapstructure:"smtp_username"`
+	SMTPPassword string `mapstructure:"smtp_password"`
+	SMTPFrom     string `mapstructure:"smtp_from"`
+	SMTPFromName string `mapstructure:"smtp_from_name"`
 }
 
 var AppConfig *Config
@@ -55,6 +62,13 @@ func LoadConfig() {
 	viper.SetDefault("JWT_EXPIRY", "24h")
 	viper.SetDefault("ADMIN_USERNAME", "admin")
 	viper.SetDefault("ADMIN_PASSWORD", "admin123")
+	viper.SetDefault("SMTP_ENABLED", "false")
+	viper.SetDefault("SMTP_HOST", "")
+	viper.SetDefault("SMTP_PORT", "587")
+	viper.SetDefault("SMTP_USERNAME", "")
+	viper.SetDefault("SMTP_PASSWORD", "")
+	viper.SetDefault("SMTP_FROM", "")
+	viper.SetDefault("SMTP_FROM_NAME", "Job Application Portal")
 
 	var config Config
 	if err := viper.Unmarshal(&config); err != nil {

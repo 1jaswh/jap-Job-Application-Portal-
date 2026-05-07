@@ -1,24 +1,25 @@
 package repositories
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"bytes"
-	//"mime"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
-	//"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/yourusername/jap/internal/config"
+	"github.com/yourusername/jap/internal/services"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"github.com/yourusername/jap/internal/config"
+	"gorm.io/gorm/clause"
 )
 
 // Base repository with common CRUD operations
@@ -399,11 +400,15 @@ func (r *ApplicantRepository) CreateApplicant() gin.HandlerFunc {
 
 // NewApplicationRepository creates application repository
 func NewApplicationRepository(db *gorm.DB) *ApplicationRepository {
-	return &ApplicationRepository{BaseRepository: &BaseRepository{DB: db}}
+	return &ApplicationRepository{
+		BaseRepository: &BaseRepository{DB: db},
+		emailService:   services.NewEmailService(config.AppConfig),
+	}
 }
 
 type ApplicationRepository struct {
 	*BaseRepository
+	emailService *services.EmailService
 }
 
 func (r *ApplicationRepository) SubmitApplication() gin.HandlerFunc {
@@ -425,7 +430,7 @@ func (r *ApplicationRepository) SubmitApplication() gin.HandlerFunc {
 				ID uint `json:"id"`
 			} `json:"documents"`
 		}
-//Debug lines
+		//Debug lines
 		body, _ := io.ReadAll(c.Request.Body)
 		fmt.Println("RAW BODY:", string(body))
 		c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
@@ -572,7 +577,7 @@ func (r *ApplicationRepository) GetApplicationByID() gin.HandlerFunc {
 		id := c.Param("id")
 		var application Application
 		if err := r.DB.Preload("Job").Preload("Applicant").
-			Preload("Responses").Preload("Documents").
+			Preload("Responses").Preload("Documents").Preload("Onboarding.Tasks").
 			First(&application, id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				c.JSON(404, gin.H{"error": "Application not found"})
@@ -580,6 +585,15 @@ func (r *ApplicationRepository) GetApplicationByID() gin.HandlerFunc {
 			}
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
+		}
+		if application.Status == "hired" && application.Onboarding == nil {
+			if err := createDefaultOnboarding(r.DB, application); err != nil {
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+			r.DB.Preload("Job").Preload("Applicant").
+				Preload("Responses").Preload("Documents").Preload("Onboarding.Tasks").
+				First(&application, application.ID)
 		}
 		c.JSON(200, application)
 	}
@@ -589,7 +603,7 @@ func (r *ApplicationRepository) UpdateStatus() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		var application Application
-		if err := r.DB.First(&application, id).Error; err != nil {
+		if err := r.DB.Preload("Job").Preload("Applicant").First(&application, id).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				c.JSON(404, gin.H{"error": "Application not found"})
 				return
@@ -606,14 +620,134 @@ func (r *ApplicationRepository) UpdateStatus() gin.HandlerFunc {
 			return
 		}
 
+		oldStatus := application.Status
+		if oldStatus == req.Status {
+			if req.Status == "hired" {
+				if err := createDefaultOnboarding(r.DB, application); err != nil {
+					c.JSON(500, gin.H{"error": err.Error()})
+					return
+				}
+				r.DB.Preload("Job").Preload("Applicant").Preload("Onboarding.Tasks").First(&application, application.ID)
+			}
+			c.JSON(200, application)
+			return
+		}
+
+		tx := r.DB.Begin()
+		if tx.Error != nil {
+			c.JSON(500, gin.H{"error": tx.Error.Error()})
+			return
+		}
+
 		application.Status = req.Status
-		if err := r.DB.Save(&application).Error; err != nil {
+		if err := tx.Save(&application).Error; err != nil {
+			tx.Rollback()
 			c.JSON(500, gin.H{"error": err.Error()})
 			return
 		}
 
+		statusLog := ApplicationStatusLog{
+			ApplicationID: application.ID,
+			OldStatus:     oldStatus,
+			NewStatus:     req.Status,
+			ChangedBy:     c.GetString("admin_user"),
+			CreatedAt:     time.Now(),
+		}
+		if err := tx.Create(&statusLog).Error; err != nil {
+			tx.Rollback()
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
+		if req.Status == "hired" {
+			if err := createDefaultOnboarding(tx, application); err != nil {
+				tx.Rollback()
+				c.JSON(500, gin.H{"error": err.Error()})
+				return
+			}
+		}
+
+		if err := tx.Commit().Error; err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
+		if shouldNotifyStatus(req.Status) {
+			r.recordStatusEmail(application, req.Status)
+		}
+
+		r.DB.Preload("Job").Preload("Applicant").Preload("Onboarding.Tasks").First(&application, application.ID)
 		c.JSON(200, application)
 	}
+}
+
+func shouldNotifyStatus(status string) bool {
+	return status == "shortlisted" || status == "hired" || status == "rejected"
+}
+
+func (r *ApplicationRepository) recordStatusEmail(application Application, status string) {
+	if r.emailService == nil {
+		r.emailService = services.NewEmailService(config.AppConfig)
+	}
+
+	message := r.emailService.RenderStatusEmail(services.StatusEmailData{
+		ApplicantName: application.Applicant.FullName,
+		JobTitle:      application.Job.Title,
+		Department:    application.Job.Department,
+		Status:        status,
+	})
+	message.To = application.Applicant.Email
+	result := r.emailService.Send(message)
+
+	var sentAt *time.Time
+	if result.DeliveryStatus == "sent" || result.DeliveryStatus == "logged" {
+		now := time.Now()
+		sentAt = &now
+	}
+
+	notification := EmailNotification{
+		ApplicationID:  application.ID,
+		Recipient:      application.Applicant.Email,
+		Status:         status,
+		Subject:        message.Subject,
+		Body:           message.Body,
+		DeliveryStatus: result.DeliveryStatus,
+		ErrorMessage:   result.ErrorMessage,
+		SentAt:         sentAt,
+	}
+	if err := r.DB.Create(&notification).Error; err != nil {
+		fmt.Println("Failed to record email notification:", err)
+	}
+}
+
+func createDefaultOnboarding(tx *gorm.DB, application Application) error {
+	onboarding := Onboarding{
+		ApplicationID: application.ID,
+		ApplicantID:   application.ApplicantID,
+		JobID:         application.JobID,
+		Department:    application.Job.Department,
+		Status:        "pending",
+	}
+	if err := tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "application_id"}},
+		DoNothing: true,
+	}).Create(&onboarding).Error; err != nil {
+		return err
+	}
+
+	if err := tx.Where("application_id = ?", application.ID).First(&onboarding).Error; err != nil {
+		return err
+	}
+
+	tasks := []OnboardingTask{
+		{OnboardingID: onboarding.ID, TaskKey: "collect_additional_documents", Title: "Collect additional documents"},
+		{OnboardingID: onboarding.ID, TaskKey: "assign_department", Title: "Assign department"},
+		{OnboardingID: onboarding.ID, TaskKey: "set_start_date", Title: "Set start date"},
+	}
+	return tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "onboarding_id"}, {Name: "task_key"}},
+		DoNothing: true,
+	}).Create(&tasks).Error
 }
 
 // NewDocumentRepository creates document repository
@@ -884,10 +1018,315 @@ func (r *VerificationRepository) GetAuditLogs() gin.HandlerFunc {
 	}
 }
 
+// NewOnboardingRepository creates onboarding repository.
+func NewOnboardingRepository(db *gorm.DB) *OnboardingRepository {
+	return &OnboardingRepository{BaseRepository: &BaseRepository{DB: db}}
+}
+
+type OnboardingRepository struct {
+	*BaseRepository
+}
+
+func (r *OnboardingRepository) GetAll() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var records []Onboarding
+		query := r.DB.Preload("Tasks").Preload("Applicant").Preload("Job").Preload("Application")
+
+		if applicationID := c.Query("application_id"); applicationID != "" {
+			query = query.Where("application_id = ?", applicationID)
+		}
+
+		if err := query.Order("created_at DESC").Find(&records).Error; err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(200, records)
+	}
+}
+
+func (r *OnboardingRepository) GetByID() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		var record Onboarding
+		if err := r.DB.Preload("Tasks").Preload("Applicant").Preload("Job").Preload("Application").First(&record, id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(404, gin.H{"error": "Onboarding record not found"})
+				return
+			}
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(200, record)
+	}
+}
+
+func (r *OnboardingRepository) Update() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		var record Onboarding
+		if err := r.DB.First(&record, id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(404, gin.H{"error": "Onboarding record not found"})
+				return
+			}
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
+		var req struct {
+			Department string `json:"department"`
+			StartDate  string `json:"start_date"`
+			Status     string `json:"status" binding:"omitempty,oneof=pending in_progress completed"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
+
+		if req.Department != "" {
+			record.Department = req.Department
+		}
+		if req.Status != "" {
+			record.Status = req.Status
+		}
+		if req.StartDate != "" {
+			startDate, err := parseDate(req.StartDate)
+			if err != nil {
+				c.JSON(400, gin.H{"error": "Invalid start_date format. Use YYYY-MM-DD"})
+				return
+			}
+			record.StartDate = &startDate
+		}
+
+		if err := r.DB.Save(&record).Error; err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
+		r.DB.Preload("Tasks").Preload("Applicant").Preload("Job").Preload("Application").First(&record, record.ID)
+		c.JSON(200, record)
+	}
+}
+
+func (r *OnboardingRepository) UpdateTask() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		taskID := c.Param("taskId")
+
+		var task OnboardingTask
+		if err := r.DB.First(&task, "id = ? AND onboarding_id = ?", taskID, id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(404, gin.H{"error": "Onboarding task not found"})
+				return
+			}
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
+		var req struct {
+			Completed bool `json:"completed"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
+
+		task.Completed = req.Completed
+		if req.Completed {
+			now := time.Now()
+			task.CompletedAt = &now
+		} else {
+			task.CompletedAt = nil
+		}
+
+		if err := r.DB.Save(&task).Error; err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
+		updateOnboardingCompletion(r.DB, task.OnboardingID)
+		c.JSON(200, task)
+	}
+}
+
+// NewReportRepository creates report repository.
+func NewReportRepository(db *gorm.DB) *ReportRepository {
+	return &ReportRepository{BaseRepository: &BaseRepository{DB: db}}
+}
+
+type ReportRepository struct {
+	*BaseRepository
+}
+
+func (r *ReportRepository) Summary() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var totalApplications, shortlisted, hired, rejected int64
+		r.DB.Model(&Application{}).Count(&totalApplications)
+		r.DB.Model(&Application{}).Where("status = ?", "shortlisted").Count(&shortlisted)
+		r.DB.Model(&Application{}).Where("status = ?", "hired").Count(&hired)
+		r.DB.Model(&Application{}).Where("status = ?", "rejected").Count(&rejected)
+
+		rejectionRate := 0.0
+		if totalApplications > 0 {
+			rejectionRate = float64(rejected) / float64(totalApplications) * 100
+		}
+
+		c.JSON(200, gin.H{
+			"total_applications": totalApplications,
+			"shortlisted":        shortlisted,
+			"hired":              hired,
+			"rejected":           rejected,
+			"rejection_rate":     round2(rejectionRate),
+		})
+	}
+}
+
+func (r *ReportRepository) ApplicationsPerJob() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var rows []struct {
+			JobID        uint   `json:"job_id"`
+			JobTitle     string `json:"job_title"`
+			Department   string `json:"department"`
+			Applications int64  `json:"applications"`
+		}
+
+		if err := r.DB.Table("jobs").
+			Select("jobs.id AS job_id, jobs.title AS job_title, jobs.department AS department, COUNT(applications.id) AS applications").
+			Joins("LEFT JOIN applications ON applications.job_id = jobs.id").
+			Group("jobs.id, jobs.title, jobs.department").
+			Order("applications DESC, jobs.title ASC").
+			Scan(&rows).Error; err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(200, rows)
+	}
+}
+
+func (r *ReportRepository) RejectionRates() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var totalApplications, totalRejected int64
+		r.DB.Model(&Application{}).Count(&totalApplications)
+		r.DB.Model(&Application{}).Where("status = ?", "rejected").Count(&totalRejected)
+
+		var byJob []struct {
+			JobID         uint    `json:"job_id"`
+			JobTitle      string  `json:"job_title"`
+			Applications  int64   `json:"applications"`
+			Rejected      int64   `json:"rejected"`
+			RejectionRate float64 `json:"rejection_rate"`
+		}
+
+		if err := r.DB.Table("jobs").
+			Select(`jobs.id AS job_id,
+				jobs.title AS job_title,
+				COUNT(applications.id) AS applications,
+				COUNT(CASE WHEN applications.status = 'rejected' THEN 1 END) AS rejected,
+				CASE WHEN COUNT(applications.id) = 0 THEN 0 ELSE COUNT(CASE WHEN applications.status = 'rejected' THEN 1 END) * 100.0 / COUNT(applications.id) END AS rejection_rate`).
+			Joins("LEFT JOIN applications ON applications.job_id = jobs.id").
+			Group("jobs.id, jobs.title").
+			Order("rejection_rate DESC, jobs.title ASC").
+			Scan(&byJob).Error; err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
+		overall := 0.0
+		if totalApplications > 0 {
+			overall = float64(totalRejected) / float64(totalApplications) * 100
+		}
+
+		for i := range byJob {
+			byJob[i].RejectionRate = round2(byJob[i].RejectionRate)
+		}
+
+		c.JSON(200, gin.H{
+			"overall_rejection_rate": round2(overall),
+			"total_applications":     totalApplications,
+			"total_rejected":         totalRejected,
+			"by_job":                 byJob,
+		})
+	}
+}
+
+func (r *ReportRepository) TimeToHire() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var rows []struct {
+			ApplicationID uint      `json:"application_id"`
+			JobID         uint      `json:"job_id"`
+			JobTitle      string    `json:"job_title"`
+			ApplicantName string    `json:"applicant_name"`
+			SubmittedAt   time.Time `json:"submitted_at"`
+			HiredAt       time.Time `json:"hired_at"`
+			DaysToHire    float64   `json:"days_to_hire"`
+		}
+
+		if err := r.DB.Table("application_status_logs").
+			Select(`applications.id AS application_id,
+				jobs.id AS job_id,
+				jobs.title AS job_title,
+				applicants.full_name AS applicant_name,
+				applications.submitted_at AS submitted_at,
+				MIN(application_status_logs.created_at) AS hired_at,
+				EXTRACT(EPOCH FROM (MIN(application_status_logs.created_at) - applications.submitted_at)) / 86400 AS days_to_hire`).
+			Joins("JOIN applications ON applications.id = application_status_logs.application_id").
+			Joins("JOIN jobs ON jobs.id = applications.job_id").
+			Joins("JOIN applicants ON applicants.id = applications.applicant_id").
+			Where("application_status_logs.new_status = ?", "hired").
+			Group("applications.id, jobs.id, jobs.title, applicants.full_name, applications.submitted_at").
+			Order("hired_at DESC").
+			Scan(&rows).Error; err != nil {
+			c.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
+		average := 0.0
+		for i := range rows {
+			rows[i].DaysToHire = round2(rows[i].DaysToHire)
+			average += rows[i].DaysToHire
+		}
+		if len(rows) > 0 {
+			average = average / float64(len(rows))
+		}
+
+		c.JSON(200, gin.H{
+			"average_days_to_hire": round2(average),
+			"hires":                rows,
+		})
+	}
+}
+
 // Helper functions
 func mustParseUint(s string) uint {
 	val, _ := strconv.ParseUint(s, 10, 32)
 	return uint(val)
+}
+
+func parseDate(value string) (time.Time, error) {
+	if parsed, err := time.Parse("2006-01-02", value); err == nil {
+		return parsed, nil
+	}
+	return time.Parse("2006-01-02T15:04", value)
+}
+
+func updateOnboardingCompletion(db *gorm.DB, onboardingID uint) {
+	var total, completed int64
+	db.Model(&OnboardingTask{}).Where("onboarding_id = ?", onboardingID).Count(&total)
+	db.Model(&OnboardingTask{}).Where("onboarding_id = ? AND completed = ?", onboardingID, true).Count(&completed)
+
+	status := "pending"
+	if completed > 0 {
+		status = "in_progress"
+	}
+	if total > 0 && completed == total {
+		status = "completed"
+	}
+	db.Model(&Onboarding{}).Where("id = ?", onboardingID).Update("status", status)
+}
+
+func round2(value float64) float64 {
+	return math.Round(value*100) / 100
 }
 
 func generateUUID() string {

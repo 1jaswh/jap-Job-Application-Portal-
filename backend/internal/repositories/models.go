@@ -124,8 +124,67 @@ type Application struct {
 	Applicant Applicant `json:"applicant" gorm:"foreignKey:ApplicantID"`
 
 	// ✅ Restored — needed for GET responses. POST binding uses inline structs so no conflict.
-	Responses []ApplicationResponse `json:"responses,omitempty" gorm:"foreignKey:ApplicationID;constraint:OnDelete:CASCADE;"`
-	Documents []Document            `json:"documents,omitempty" gorm:"foreignKey:ApplicationID;constraint:OnDelete:CASCADE;"`
+	Responses  []ApplicationResponse `json:"responses,omitempty" gorm:"foreignKey:ApplicationID;constraint:OnDelete:CASCADE;"`
+	Documents  []Document            `json:"documents,omitempty" gorm:"foreignKey:ApplicationID;constraint:OnDelete:CASCADE;"`
+	Onboarding *Onboarding           `json:"onboarding,omitempty" gorm:"foreignKey:ApplicationID;constraint:OnDelete:CASCADE;"`
+}
+
+// ApplicationStatusLog tracks recruitment pipeline transitions.
+type ApplicationStatusLog struct {
+	ID            uint        `json:"id" gorm:"primaryKey"`
+	ApplicationID uint        `json:"application_id" gorm:"not null;index"`
+	Application   Application `json:"-" gorm:"foreignKey:ApplicationID;constraint:OnDelete:CASCADE;"`
+	OldStatus     string      `json:"old_status" gorm:"size:20"`
+	NewStatus     string      `json:"new_status" gorm:"size:20;not null;index"`
+	ChangedBy     string      `json:"changed_by" gorm:"size:100"`
+	CreatedAt     time.Time   `json:"created_at" gorm:"not null;index"`
+}
+
+// EmailNotification records applicant status notification attempts.
+type EmailNotification struct {
+	ID             uint        `json:"id" gorm:"primaryKey"`
+	ApplicationID  uint        `json:"application_id" gorm:"not null;index"`
+	Application    Application `json:"-" gorm:"foreignKey:ApplicationID;constraint:OnDelete:CASCADE;"`
+	Recipient      string      `json:"recipient" gorm:"size:255;not null;index"`
+	Status         string      `json:"status" gorm:"size:20;not null;index"`
+	Subject        string      `json:"subject" gorm:"size:255;not null"`
+	Body           string      `json:"body" gorm:"type:text;not null"`
+	DeliveryStatus string      `json:"delivery_status" gorm:"size:20;not null;index"`
+	ErrorMessage   string      `json:"error_message" gorm:"type:text"`
+	SentAt         *time.Time  `json:"sent_at,omitempty"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
+}
+
+// Onboarding is created after a candidate is hired.
+type Onboarding struct {
+	ID            uint        `json:"id" gorm:"primaryKey"`
+	ApplicationID uint        `json:"application_id" gorm:"not null;uniqueIndex"`
+	Application   Application `json:"application" gorm:"foreignKey:ApplicationID;constraint:OnDelete:CASCADE;"`
+	ApplicantID   uint        `json:"applicant_id" gorm:"not null;index"`
+	Applicant     Applicant   `json:"applicant" gorm:"foreignKey:ApplicantID"`
+	JobID         uint        `json:"job_id" gorm:"not null;index"`
+	Job           Job         `json:"job" gorm:"foreignKey:JobID"`
+	Department    string      `json:"department" gorm:"size:100;not null"`
+	StartDate     *time.Time  `json:"start_date,omitempty"`
+	Status        string      `json:"status" gorm:"size:20;default:'pending';index"`
+	CreatedAt     time.Time   `json:"created_at"`
+	UpdatedAt     time.Time   `json:"updated_at"`
+
+	Tasks []OnboardingTask `json:"tasks,omitempty" gorm:"foreignKey:OnboardingID;constraint:OnDelete:CASCADE;"`
+}
+
+// OnboardingTask represents one checklist item for a hired applicant.
+type OnboardingTask struct {
+	ID           uint       `json:"id" gorm:"primaryKey"`
+	OnboardingID uint       `json:"onboarding_id" gorm:"not null;index;uniqueIndex:idx_onboarding_task_key"`
+	Onboarding   Onboarding `json:"-" gorm:"foreignKey:OnboardingID;constraint:OnDelete:CASCADE;"`
+	TaskKey      string     `json:"task_key" gorm:"size:100;not null;uniqueIndex:idx_onboarding_task_key"`
+	Title        string     `json:"title" gorm:"size:255;not null"`
+	Completed    bool       `json:"completed" gorm:"default:false;index"`
+	CompletedAt  *time.Time `json:"completed_at,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 // ApplicationResponse stores answers to dynamic form fields

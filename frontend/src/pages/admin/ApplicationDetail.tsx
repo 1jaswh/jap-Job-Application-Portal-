@@ -1,8 +1,8 @@
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, FileText, CheckCircle, XCircle, User, Mail, Phone, Loader2, AlertCircle, Download, Clock, Briefcase } from 'lucide-react'
+import { ArrowLeft, FileText, CheckCircle, XCircle, User, Mail, Phone, Loader2, AlertCircle, Download, Clock, Briefcase, ClipboardCheck } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { applicationsAPI, Application, verificationAPI } from '../../services/api'
+import { applicationsAPI, Application, verificationAPI, onboardingAPI, Onboarding } from '../../services/api'
 
 const statusColors: Record<string, string> = {
   pending:     'bg-yellow-100 text-yellow-800',
@@ -40,6 +40,9 @@ export default function ApplicationDetail() {
   const [verifyingDocId, setVerifyingDocId] = useState<number | null>(null)
   const [rejectingDocId, setRejectingDocId] = useState<number | null>(null)
   const [notes, setNotes] = useState<Record<number, string>>({})
+  const [onboarding, setOnboarding] = useState<Onboarding | null>(null)
+  const [onboardingForm, setOnboardingForm] = useState({ department: '', start_date: '' })
+  const [savingOnboarding, setSavingOnboarding] = useState(false)
 
   useEffect(() => {
     if (id) fetchApplication()
@@ -50,10 +53,38 @@ export default function ApplicationDetail() {
     try {
       const data = await applicationsAPI.getById(Number(id))
       setApplication(data)
+      if (data.status === 'hired') {
+        if (data.onboarding) {
+          setOnboarding(data.onboarding)
+          setOnboardingForm({
+            department: data.onboarding.department || '',
+            start_date: data.onboarding.start_date ? data.onboarding.start_date.slice(0, 10) : '',
+          })
+        } else {
+          await fetchOnboarding(data.id)
+        }
+      } else {
+        setOnboarding(null)
+        setOnboardingForm({ department: '', start_date: '' })
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load application')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchOnboarding = async (applicationId: number) => {
+    try {
+      const records = await onboardingAPI.getAll({ application_id: applicationId })
+      const record = records[0] || null
+      setOnboarding(record)
+      setOnboardingForm({
+        department: record?.department || '',
+        start_date: record?.start_date ? record.start_date.slice(0, 10) : '',
+      })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load onboarding')
     }
   }
 
@@ -98,11 +129,59 @@ export default function ApplicationDetail() {
   const handleStatusUpdate = async (newStatus: string) => {
     if (!id) return
     try {
-      await applicationsAPI.updateStatus(Number(id), newStatus)
-      setApplication(prev => prev ? { ...prev, status: newStatus as any } : null)
+      const updated = await applicationsAPI.updateStatus(Number(id), newStatus)
+      setApplication(prev => prev ? { ...prev, ...updated, status: newStatus as any } : updated)
+      if (newStatus === 'hired') {
+        if (updated.onboarding) {
+          setOnboarding(updated.onboarding)
+          setOnboardingForm({
+            department: updated.onboarding.department || '',
+            start_date: updated.onboarding.start_date ? updated.onboarding.start_date.slice(0, 10) : '',
+          })
+        } else {
+          await fetchOnboarding(Number(id))
+        }
+      } else {
+        setOnboarding(null)
+        setOnboardingForm({ department: '', start_date: '' })
+      }
       toast.success('Application status updated')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update status')
+    }
+  }
+
+  const handleOnboardingSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!onboarding) return
+    try {
+      setSavingOnboarding(true)
+      const updated = await onboardingAPI.update(onboarding.id, onboardingForm)
+      setOnboarding(updated)
+      setOnboardingForm({
+        department: updated.department,
+        start_date: updated.start_date ? updated.start_date.slice(0, 10) : '',
+      })
+      toast.success('Onboarding updated')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update onboarding')
+    } finally {
+      setSavingOnboarding(false)
+    }
+  }
+
+  const handleTaskToggle = async (taskId: number, completed: boolean) => {
+    if (!onboarding) return
+    try {
+      const updatedTask = await onboardingAPI.updateTask(onboarding.id, taskId, completed)
+      setOnboarding(prev => prev ? {
+        ...prev,
+        tasks: prev.tasks?.map(task => task.id === taskId ? updatedTask : task),
+      } : null)
+      toast.success('Checklist updated')
+      await fetchOnboarding(onboarding.application_id)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update checklist')
     }
   }
 
@@ -347,6 +426,76 @@ export default function ApplicationDetail() {
               </Link>
             </div>
           </div>
+
+          {application.status === 'hired' && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <ClipboardCheck className="h-5 w-5 text-green-600" />
+                Onboarding
+              </h2>
+              {onboarding ? (
+                <div className="space-y-4">
+                  <form onSubmit={handleOnboardingSave} className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Department
+                      </label>
+                      <input
+                        type="text"
+                        value={onboardingForm.department}
+                        onChange={(e) => setOnboardingForm(prev => ({ ...prev, department: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Start Date
+                      </label>
+                      <input
+                        type="date"
+                        value={onboardingForm.start_date}
+                        onChange={(e) => setOnboardingForm(prev => ({ ...prev, start_date: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={savingOnboarding}
+                      className="w-full flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {savingOnboarding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Onboarding'}
+                    </button>
+                  </form>
+
+                  <div className="border-t pt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-medium text-gray-700">Checklist</p>
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusColors[onboarding.status] || 'bg-gray-100 text-gray-800'}`}>
+                        {onboarding.status.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {onboarding.tasks?.map(task => (
+                        <label key={task.id} className="flex items-start gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={task.completed}
+                            onChange={(e) => handleTaskToggle(task.id, e.target.checked)}
+                            className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          />
+                          <span className={task.completed ? 'line-through text-gray-500' : ''}>
+                            {task.title}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">Onboarding is being prepared.</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

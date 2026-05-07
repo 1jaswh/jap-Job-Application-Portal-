@@ -42,6 +42,7 @@ export interface Application {
   applicant?: Applicant;
   responses?: ApplicationResponse[];
   documents?: Document[];
+  onboarding?: Onboarding;
 }
 
 export interface ApplicationResponse {
@@ -75,6 +76,86 @@ export interface VerificationLog {
   verified_by: string;
   notes: string | null;
   created_at: string;
+}
+
+export interface EmailNotification {
+  id: number;
+  application_id: number;
+  recipient: string;
+  status: string;
+  subject: string;
+  body: string;
+  delivery_status: 'sent' | 'logged' | 'failed';
+  error_message?: string;
+  sent_at?: string;
+}
+
+export interface OnboardingTask {
+  id: number;
+  onboarding_id: number;
+  task_key: string;
+  title: string;
+  completed: boolean;
+  completed_at?: string;
+}
+
+export interface Onboarding {
+  id: number;
+  application_id: number;
+  applicant_id: number;
+  job_id: number;
+  department: string;
+  start_date?: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  application?: Application;
+  applicant?: Applicant;
+  job?: Job;
+  tasks?: OnboardingTask[];
+}
+
+export interface ReportSummary {
+  total_applications: number;
+  shortlisted: number;
+  hired: number;
+  rejected: number;
+  rejection_rate: number;
+}
+
+export interface ApplicationsPerJobReport {
+  job_id: number;
+  job_title: string;
+  department: string;
+  applications: number;
+}
+
+export interface RejectionRateByJob {
+  job_id: number;
+  job_title: string;
+  applications: number;
+  rejected: number;
+  rejection_rate: number;
+}
+
+export interface RejectionRatesReport {
+  overall_rejection_rate: number;
+  total_applications: number;
+  total_rejected: number;
+  by_job: RejectionRateByJob[];
+}
+
+export interface TimeToHireItem {
+  application_id: number;
+  job_id: number;
+  job_title: string;
+  applicant_name: string;
+  submitted_at: string;
+  hired_at: string;
+  days_to_hire: number;
+}
+
+export interface TimeToHireReport {
+  average_days_to_hire: number;
+  hires: TimeToHireItem[];
 }
 
 export interface SubmitApplicationRequest {
@@ -194,4 +275,31 @@ export const verificationAPI = {
     body: JSON.stringify({ notes }),
   }),
   getLogs: () => fetchAPI<VerificationLog[]>('/verification/logs'),
+};
+
+// Onboarding API
+export const onboardingAPI = {
+  getAll: (filters?: { application_id?: number }) => {
+    const params = new URLSearchParams();
+    if (filters?.application_id) params.append('application_id', filters.application_id.toString());
+    const query = params.toString();
+    return fetchAPI<Onboarding[]>(`/onboarding${query ? `?${query}` : ''}`);
+  },
+  getById: (id: number) => fetchAPI<Onboarding>(`/onboarding/${id}`),
+  update: (id: number, data: Partial<Pick<Onboarding, 'department' | 'start_date' | 'status'>>) => fetchAPI<Onboarding>(`/onboarding/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }),
+  updateTask: (id: number, taskId: number, completed: boolean) => fetchAPI<OnboardingTask>(`/onboarding/${id}/tasks/${taskId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ completed }),
+  }),
+};
+
+// Reports API
+export const reportsAPI = {
+  summary: () => fetchAPI<ReportSummary>('/reports/summary'),
+  applicationsPerJob: () => fetchAPI<ApplicationsPerJobReport[]>('/reports/applications-per-job'),
+  rejectionRates: () => fetchAPI<RejectionRatesReport>('/reports/rejection-rates'),
+  timeToHire: () => fetchAPI<TimeToHireReport>('/reports/time-to-hire'),
 };

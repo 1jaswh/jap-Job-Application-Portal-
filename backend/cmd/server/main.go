@@ -4,12 +4,12 @@ import (
 	"log"
 	"os"
 
-	"github.com/yourusername/jap/internal/config"
-	"github.com/yourusername/jap/internal/middleware"
-	"github.com/yourusername/jap/internal/repositories"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/requestid"
 	"github.com/gin-gonic/gin"
+	"github.com/yourusername/jap/internal/config"
+	"github.com/yourusername/jap/internal/middleware"
+	"github.com/yourusername/jap/internal/repositories"
 	"go.uber.org/zap"
 )
 
@@ -36,6 +36,10 @@ func main() {
 		&repositories.ApplicationResponse{},
 		&repositories.Document{},
 		&repositories.VerificationLog{},
+		&repositories.ApplicationStatusLog{},
+		&repositories.EmailNotification{},
+		&repositories.Onboarding{},
+		&repositories.OnboardingTask{},
 	); err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
@@ -46,6 +50,8 @@ func main() {
 	applicationRepo := repositories.NewApplicationRepository(db)
 	documentRepo := repositories.NewDocumentRepository(db)
 	verificationRepo := repositories.NewVerificationRepository(db)
+	onboardingRepo := repositories.NewOnboardingRepository(db)
+	reportRepo := repositories.NewReportRepository(db)
 
 	// Setup Gin router
 	if os.Getenv("GIN_MODE") == "release" {
@@ -103,6 +109,18 @@ func main() {
 		v1.POST("/verification/:docId/verify", verificationRepo.VerifyDocument())
 		v1.POST("/verification/:docId/reject", verificationRepo.RejectDocument())
 		v1.GET("/verification/logs", verificationRepo.GetAuditLogs())
+
+		// Onboarding routes
+		v1.GET("/onboarding", onboardingRepo.GetAll())
+		v1.GET("/onboarding/:id", onboardingRepo.GetByID())
+		v1.PATCH("/onboarding/:id", onboardingRepo.Update())
+		v1.PATCH("/onboarding/:id/tasks/:taskId", onboardingRepo.UpdateTask())
+
+		// Reporting routes
+		v1.GET("/reports/summary", reportRepo.Summary())
+		v1.GET("/reports/applications-per-job", reportRepo.ApplicationsPerJob())
+		v1.GET("/reports/rejection-rates", reportRepo.RejectionRates())
+		v1.GET("/reports/time-to-hire", reportRepo.TimeToHire())
 	}
 
 	// Start server

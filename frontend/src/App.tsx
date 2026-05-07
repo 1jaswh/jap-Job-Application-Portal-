@@ -10,6 +10,7 @@ import Dashboard from './pages/admin/Dashboard'
 import JobsManagement from './pages/admin/JobsManagement'
 import ApplicationsList from './pages/admin/ApplicationsList'
 import ApplicationDetail from './pages/admin/ApplicationDetail'
+import ReportsPage from './pages/admin/ReportsPage'
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
           <Route path="jobs" element={<JobsManagement />} />
           <Route path="applications" element={<ApplicationsList />} />
           <Route path="applications/:id" element={<ApplicationDetail />} />
+          <Route path="reports" element={<ReportsPage />} />
         </Route>
       </Routes>
     </>

@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, FileText, Users, ArrowLeft } from 'lucide-react'
+import { LayoutDashboard, FileText, Users, ArrowLeft, BarChart3 } from 'lucide-react'
 
 export default function AdminLayout() {
   const location = useLocation()
@@ -8,6 +8,7 @@ export default function AdminLayout() {
     { path: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
     { path: '/admin/jobs', icon: FileText, label: 'Jobs' },
     { path: '/admin/applications', icon: Users, label: 'Applications' },
+    { path: '/admin/reports', icon: BarChart3, label: 'Reports' },
   ]
 
   const isActive = (path: string, exact?: boolean) => {
