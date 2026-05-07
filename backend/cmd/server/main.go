@@ -27,7 +27,7 @@ func main() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
-	// Auto-migrate tables (for development; use golang-migrate in production)
+	// Auto-migrate tables
 	if err := db.AutoMigrate(
 		&repositories.Job{},
 		&repositories.JobRequirement{},
@@ -66,7 +66,10 @@ func main() {
 	router.Use(middleware.LoggerMiddleware(logger))
 	router.Use(middleware.RecoveryMiddleware(logger))
 
-	// ✅ Serve uploaded files statically
+	// Auto-close expired jobs on every request
+	router.Use(repositories.DeadlineEnforcementMiddleware(db))
+
+	// Serve uploaded files statically
 	router.Static("/uploads", config.AppConfig.UploadPath)
 
 	// Health check
@@ -85,7 +88,7 @@ func main() {
 		v1.PATCH("/jobs/:id/status", jobRepo.UpdateJobStatus())
 		v1.DELETE("/jobs/:id", jobRepo.DeleteJob())
 
-		// Job requirements (dynamic form builder)
+		// Job requirements
 		v1.POST("/jobs/:id/requirements", jobRepo.AddRequirement())
 		v1.GET("/jobs/:id/requirements", jobRepo.GetRequirements())
 		v1.PUT("/jobs/:id/requirements/:reqId", jobRepo.UpdateRequirement())
@@ -100,7 +103,7 @@ func main() {
 		v1.GET("/applications/:id", applicationRepo.GetApplicationByID())
 		v1.PATCH("/applications/:id/status", applicationRepo.UpdateStatus())
 
-		// Document upload routes
+		// Document routes
 		v1.POST("/documents/upload", documentRepo.UploadDocument())
 		v1.GET("/documents/:id", documentRepo.GetDocument())
 		v1.DELETE("/documents/:id", documentRepo.DeleteDocument())

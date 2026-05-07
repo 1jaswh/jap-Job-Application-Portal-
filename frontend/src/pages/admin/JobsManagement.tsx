@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit, Trash2, X, Loader2, AlertCircle } from 'lucide-react'
+import { Plus, Edit, Trash2, X, Loader2, AlertCircle, ToggleLeft, ToggleRight } from 'lucide-react'
 import { jobsAPI, Job } from '../../services/api'
+
+function isExpired(deadline: string): boolean {
+  return new Date(deadline) < new Date()
+}
 
 export default function JobsManagement() {
   const [jobs, setJobs] = useState<Job[]>([])
@@ -8,6 +12,7 @@ export default function JobsManagement() {
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [editingJob, setEditingJob] = useState<Job | null>(null)
+  const [togglingId, setTogglingId] = useState<number | null>(null)
   const [formData, setFormData] = useState({
     title: '',
     department: '',
@@ -53,10 +58,24 @@ export default function JobsManagement() {
       department: job.department,
       description: job.description,
       location: job.location,
-      deadline: job.deadline.split('T')[0], // Format for datetime-local input
+      deadline: job.deadline.split('T')[0],
       status: job.status as 'open' | 'closed',
     })
     setShowModal(true)
+  }
+
+  // ✅ Quick toggle open/closed
+  const handleToggleStatus = async (job: Job) => {
+    const newStatus = job.status === 'open' ? 'closed' : 'open'
+    try {
+      setTogglingId(job.id)
+      await jobsAPI.updateStatus(job.id, newStatus)
+      setJobs(prev => prev.map(j => j.id === job.id ? { ...j, status: newStatus } : j))
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update status')
+    } finally {
+      setTogglingId(null)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -83,6 +102,19 @@ export default function JobsManagement() {
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to delete job')
     }
+  }
+
+  const getStatusBadge = (job: Job) => {
+    if (isExpired(job.deadline) && job.status === 'open') {
+      return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800">Expired</span>
+    }
+    return (
+      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+        job.status === 'open' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+      }`}>
+        {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
+      </span>
+    )
   }
 
   return (
@@ -124,26 +156,16 @@ export default function JobsManagement() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Title
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Department
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Deadline
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deadline</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {jobs.map((job) => (
-                <tr key={job.id}>
+                <tr key={job.id} className={isExpired(job.deadline) ? 'bg-orange-50' : ''}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {job.title}
                   </td>
@@ -151,28 +173,43 @@ export default function JobsManagement() {
                     {job.department}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      job.status === 'open' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
-                    </span>
+                    {getStatusBadge(job)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(job.deadline).toLocaleDateString()}
+                    <span className={isExpired(job.deadline) ? 'text-orange-600 font-medium' : ''}>
+                      {new Date(job.deadline).toLocaleDateString()}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => handleEdit(job)}
-                      className="text-primary-600 hover:text-primary-900 mr-3"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(job.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-3">
+                      {/* ✅ Quick toggle open/closed */}
+                      <button
+                        onClick={() => handleToggleStatus(job)}
+                        disabled={togglingId === job.id}
+                        title={job.status === 'open' ? 'Close job' : 'Reopen job'}
+                        className="text-gray-500 hover:text-gray-700 disabled:opacity-50"
+                      >
+                        {togglingId === job.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : job.status === 'open' ? (
+                          <ToggleRight className="h-5 w-5 text-green-600" />
+                        ) : (
+                          <ToggleLeft className="h-5 w-5 text-gray-400" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleEdit(job)}
+                        className="text-primary-600 hover:text-primary-900"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(job.id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -195,75 +232,63 @@ export default function JobsManagement() {
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Title *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
                 <input
                   type="text"
                   required
                   value={formData.title}
                   onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Department *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department *</label>
                 <input
                   type="text"
                   required
                   value={formData.department}
                   onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
                 <textarea
                   required
                   rows={4}
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Location *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
                   <input
                     type="text"
                     required
                     value={formData.location}
                     onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Deadline *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Deadline *</label>
                   <input
                     type="datetime-local"
                     required
                     value={formData.deadline}
                     onChange={(e) => setFormData(prev => ({ ...prev, deadline: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Status
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as 'open' | 'closed' }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
                 >
                   <option value="open">Open</option>
                   <option value="closed">Closed</option>

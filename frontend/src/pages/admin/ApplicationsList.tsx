@@ -48,7 +48,7 @@ export default function ApplicationsList() {
     }
   }
 
-  // ✅ Client-side search + date filtering (runs on already-fetched data)
+  //  Client-side search + date filtering (runs on already-fetched data)
   const filtered = useMemo(() => {
     return applications.filter(app => {
       // Search — matches name or email
