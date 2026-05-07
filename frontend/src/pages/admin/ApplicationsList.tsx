@@ -1,40 +1,86 @@
 import { Link } from 'react-router-dom'
-import { Search, Loader2, AlertCircle } from 'lucide-react'
-import { useState, useEffect } from 'react'
-import { applicationsAPI, Application } from '../../services/api'
+import { Search, Loader2, AlertCircle, X } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { applicationsAPI, jobsAPI, Application, Job } from '../../services/api'
 
 const statusColors: Record<string, string> = {
-  applied: 'bg-blue-100 text-blue-800',
+  applied:     'bg-blue-100 text-blue-800',
   shortlisted: 'bg-yellow-100 text-yellow-800',
-  interview: 'bg-purple-100 text-purple-800',
-  hired: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800',
+  interview:   'bg-purple-100 text-purple-800',
+  hired:       'bg-green-100 text-green-800',
+  rejected:    'bg-red-100 text-red-800',
 }
 
 export default function ApplicationsList() {
   const [applications, setApplications] = useState<Application[]>([])
+  const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filters, setFilters] = useState({ job_id: '', status: '' })
+
+  // Filters
+  const [search, setSearch] = useState('')
+  const [jobFilter, setJobFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   useEffect(() => {
-    fetchApplications()
-  }, [filters])
+    fetchData()
+  }, [jobFilter, statusFilter])
 
-  const fetchApplications = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true)
-      const data = await applicationsAPI.getAll({
-        job_id: filters.job_id ? Number(filters.job_id) : undefined,
-        status: filters.status || undefined,
-      })
-      setApplications(data)
+      const [appsData, jobsData] = await Promise.all([
+        applicationsAPI.getAll({
+          job_id: jobFilter ? Number(jobFilter) : undefined,
+          status: statusFilter || undefined,
+        }),
+        jobsAPI.getAll(),
+      ])
+      setApplications(appsData ?? [])
+      setJobs(jobsData ?? [])
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load applications')
     } finally {
       setLoading(false)
     }
+  }
+
+  // ✅ Client-side search + date filtering (runs on already-fetched data)
+  const filtered = useMemo(() => {
+    return applications.filter(app => {
+      // Search — matches name or email
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        const name = app.applicant?.full_name?.toLowerCase() ?? ''
+        const email = app.applicant?.email?.toLowerCase() ?? ''
+        if (!name.includes(q) && !email.includes(q)) return false
+      }
+
+      // Date from
+      if (dateFrom) {
+        if (new Date(app.submitted_at) < new Date(dateFrom)) return false
+      }
+
+      // Date to
+      if (dateTo) {
+        if (new Date(app.submitted_at) > new Date(dateTo + 'T23:59:59')) return false
+      }
+
+      return true
+    })
+  }, [applications, search, dateFrom, dateTo])
+
+  const hasActiveFilters = search || jobFilter || statusFilter || dateFrom || dateTo
+
+  const clearFilters = () => {
+    setSearch('')
+    setJobFilter('')
+    setStatusFilter('')
+    setDateFrom('')
+    setDateTo('')
   }
 
   return (
@@ -44,38 +90,84 @@ export default function ApplicationsList() {
       {/* Filters */}
       <div className="bg-white p-4 rounded-lg shadow mb-6">
         <div className="flex flex-wrap gap-4">
+
+          {/* Search */}
           <div className="flex-1 min-w-[200px]">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search applicants..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name or email..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
               />
             </div>
           </div>
-          <div className="flex gap-2">
-            <select
-              value={filters.job_id}
-              onChange={(e) => setFilters(prev => ({ ...prev, job_id: e.target.value }))}
-              className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+
+          {/* Job filter */}
+          <select
+            value={jobFilter}
+            onChange={(e) => setJobFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
+          >
+            <option value="">All Jobs</option>
+            {jobs.map(job => (
+              <option key={job.id} value={job.id}>{job.title}</option>
+            ))}
+          </select>
+
+          {/* Status filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
+          >
+            <option value="">All Statuses</option>
+            <option value="applied">Applied</option>
+            <option value="shortlisted">Shortlisted</option>
+            <option value="interview">Interview</option>
+            <option value="hired">Hired</option>
+            <option value="rejected">Rejected</option>
+          </select>
+
+          {/* Date from */}
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
+            title="From date"
+          />
+
+          {/* Date to */}
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
+            title="To date"
+          />
+
+          {/* Clear filters */}
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
             >
-              <option value="">All Jobs</option>
-            </select>
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-              className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="">All Statuses</option>
-              <option value="applied">Applied</option>
-              <option value="shortlisted">Shortlisted</option>
-              <option value="interview">Interview</option>
-              <option value="hired">Hired</option>
-              <option value="rejected">Rejected</option>
-            </select>
-          </div>
+              <X className="h-4 w-4" />
+              Clear
+            </button>
+          )}
         </div>
+
+        {/* Result count */}
+        {!loading && (
+          <p className="mt-3 text-sm text-gray-500">
+            Showing <span className="font-medium text-gray-900">{filtered.length}</span> of{' '}
+            <span className="font-medium text-gray-900">{applications.length}</span> applications
+          </p>
+        )}
       </div>
 
       {loading && (
@@ -92,14 +184,24 @@ export default function ApplicationsList() {
         </div>
       )}
 
-      {!loading && !error && applications.length === 0 && (
+      {!loading && !error && filtered.length === 0 && (
         <div className="bg-white shadow rounded-lg p-8 text-center">
-          <p className="text-gray-500">No applications found.</p>
+          <p className="text-gray-500">
+            {hasActiveFilters ? 'No applications match your filters.' : 'No applications found.'}
+          </p>
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              className="mt-2 text-sm text-primary-600 hover:text-primary-700"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
       )}
 
       {/* Applications Table */}
-      {!loading && !error && applications.length > 0 && (
+      {!loading && !error && filtered.length > 0 && (
         <div className="bg-white shadow overflow-hidden rounded-lg">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -122,7 +224,7 @@ export default function ApplicationsList() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {applications.map((app) => (
+              {filtered.map((app) => (
                 <tr key={app.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
