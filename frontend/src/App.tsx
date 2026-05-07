@@ -11,6 +11,7 @@ import JobsManagement from './pages/admin/JobsManagement'
 import ApplicationsList from './pages/admin/ApplicationsList'
 import ApplicationDetail from './pages/admin/ApplicationDetail'
 import ReportsPage from './pages/admin/ReportsPage'
+import OnboardingPage from './pages/admin/OnboardingPage'
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
           <Route path="applications" element={<ApplicationsList />} />
           <Route path="applications/:id" element={<ApplicationDetail />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="onboarding" element={<OnboardingPage />} />
         </Route>
       </Routes>
     </>
