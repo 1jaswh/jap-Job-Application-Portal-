@@ -7,7 +7,9 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/requestid"
 	"github.com/gin-gonic/gin"
+	"github.com/yourusername/jap/internal/ai"
 	"github.com/yourusername/jap/internal/config"
+	"github.com/yourusername/jap/internal/controllers"
 	"github.com/yourusername/jap/internal/middleware"
 	"github.com/yourusername/jap/internal/repositories"
 	"go.uber.org/zap"
@@ -40,6 +42,7 @@ func main() {
 		&repositories.EmailNotification{},
 		&repositories.Onboarding{},
 		&repositories.OnboardingTask{},
+		&repositories.AIParsedData{},
 	); err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
@@ -52,6 +55,7 @@ func main() {
 	verificationRepo := repositories.NewVerificationRepository(db)
 	onboardingRepo := repositories.NewOnboardingRepository(db)
 	reportRepo := repositories.NewReportRepository(db)
+	aiParsedDataRepo := repositories.NewAIParsedDataRepository(db)
 
 	// Setup Gin router
 	if os.Getenv("GIN_MODE") == "release" {
@@ -124,6 +128,12 @@ func main() {
 		v1.GET("/reports/applications-per-job", reportRepo.ApplicationsPerJob())
 		v1.GET("/reports/rejection-rates", reportRepo.RejectionRates())
 		v1.GET("/reports/time-to-hire", reportRepo.TimeToHire())
+
+		// AI routes
+		aiService := ai.NewAIService()
+		aiController := controllers.NewAIController(aiService, aiParsedDataRepo, documentRepo, applicationRepo, logger)
+		v1.POST("/ai/parse-cv", aiController.ParseCV)
+		v1.GET("/ai/parsed/:documentId", aiController.GetParsedCV)
 	}
 
 	// Start server

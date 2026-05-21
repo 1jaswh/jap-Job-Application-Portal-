@@ -892,6 +892,16 @@ func (r *DocumentRepository) GetDocument() gin.HandlerFunc {
 	}
 }
 
+// GetByID fetches a single document record by its primary key.
+func (r *DocumentRepository) GetByID(id int) (*Document, error) {
+	var doc Document
+	err := r.DB.First(&doc, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &doc, nil
+}
+
 func (r *DocumentRepository) DeleteDocument() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")

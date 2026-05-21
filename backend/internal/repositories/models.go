@@ -229,3 +229,20 @@ type VerificationLog struct {
 	Notes      string    `json:"notes" gorm:"type:text"`
 	CreatedAt  time.Time `json:"created_at" gorm:"not null"`
 }
+
+// AIParsedData stores structured data extracted from CVs by the AI parser.
+type AIParsedData struct {
+	ID              uint           `json:"id" gorm:"primaryKey"`
+	DocumentID      *uint          `json:"document_id,omitempty" gorm:"index"`
+	Document        *Document      `json:"document,omitempty" gorm:"foreignKey:DocumentID;constraint:OnDelete:SET NULL;"`
+	ApplicationID   *uint          `json:"application_id,omitempty" gorm:"index"`
+	Application     *Application   `json:"application,omitempty" gorm:"foreignKey:ApplicationID;constraint:OnDelete:CASCADE;"`
+	ParsedJSON      map[string]any `json:"parsed_json" gorm:"type:jsonb"`
+	Skills          []string       `json:"skills" gorm:"type:text[]"`
+	ExperienceYears *int           `json:"experience_years,omitempty"`
+	EducationLevel  string         `json:"education_level" gorm:"size:100"`
+	ExtractedText   string         `json:"extracted_text" gorm:"type:text"`
+	ConfidenceScore *float64       `json:"confidence_score,omitempty" gorm:"type:decimal(3,2)"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+}

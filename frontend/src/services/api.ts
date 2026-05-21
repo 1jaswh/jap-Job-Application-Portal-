@@ -158,6 +158,18 @@ export interface TimeToHireReport {
   hires: TimeToHireItem[];
 }
 
+export interface AIParsedCVResponse {
+  id: number;
+  document_id: number;
+  application_id?: number;
+  parsed_json: Record<string, any>;
+  skills: string[];
+  experience_years?: number;
+  education_level: string;
+  confidence_score?: number;
+  created_at: string;
+}
+
 export interface SubmitApplicationRequest {
   applicant: {
     full_name: string;
@@ -302,4 +314,15 @@ export const reportsAPI = {
   applicationsPerJob: () => fetchAPI<ApplicationsPerJobReport[]>('/reports/applications-per-job'),
   rejectionRates: () => fetchAPI<RejectionRatesReport>('/reports/rejection-rates'),
   timeToHire: () => fetchAPI<TimeToHireReport>('/reports/time-to-hire'),
+};
+
+// AI API
+export const aiAPI = {
+  parseCV: (documentId: number) => 
+    fetchAPI<AIParsedCVResponse>(`/ai/parse-cv`, {
+      method: 'POST',
+      body: JSON.stringify({ document_id: documentId }),
+    }),
+  getParsedCV: (documentId: number) => 
+    fetchAPI<AIParsedCVResponse>(`/ai/parsed/${documentId}`),
 };

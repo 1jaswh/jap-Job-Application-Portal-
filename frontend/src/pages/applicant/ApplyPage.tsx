@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { Briefcase, MapPin, Upload, Loader2, AlertCircle } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { jobsAPI, Job, documentsAPI, applicationsAPI, SubmitApplicationRequest } from '../../services/api'
+import { jobsAPI, Job, documentsAPI, applicationsAPI, SubmitApplicationRequest, aiAPI, AIParsedCVResponse } from '../../services/api'
 
 type FormData = Record<string, string | File>
 
@@ -16,6 +16,9 @@ export default function ApplyPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [fileInputs, setFileInputs] = useState<Record<string, File | null>>({})
+  const [cvParsing, setCVParsing] = useState<Record<string, boolean>>({})
+  const [cvParseResults, setCVParseResults] = useState<Record<string, AIParsedCVResponse | null>>({})
+  const [cvParseErrors, setCVParseErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -75,27 +78,42 @@ export default function ApplyPage() {
       const result = await applicationsAPI.submit(applicationData)
       const applicationId = result.application.id
 
-      // Step 3: Upload files with the real application ID
-      const fileEntries = Object.entries(fileInputs).filter(([_, file]) => file !== null)
+       // Step 3: Upload files with the real application ID
+       const fileEntries = Object.entries(fileInputs).filter(([_, file]) => file !== null)
 
-      for (const [fieldName, file] of fileEntries) {
-        if (!file) continue
+       for (const [fieldName, file] of fileEntries) {
+         if (!file) continue
 
-        let docType: 'cv' | 'national_id' | 'transcript' = 'cv'
-        const lowerField = fieldName.toLowerCase()
-        if (lowerField.includes('national') || lowerField.includes('id')) {
-          docType = 'national_id'
-        } else if (lowerField.includes('transcript')) {
-          docType = 'transcript'
-        }
+         let docType: 'cv' | 'national_id' | 'transcript' = 'cv'
+         const lowerField = fieldName.toLowerCase()
+         if (lowerField.includes('national') || lowerField.includes('id')) {
+           docType = 'national_id'
+         } else if (lowerField.includes('transcript')) {
+           docType = 'transcript'
+         }
 
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('doc_type', docType)
-        formData.append('application_id', String(applicationId))
+         const formData = new FormData()
+         formData.append('file', file)
+         formData.append('doc_type', docType)
+         formData.append('application_id', String(applicationId))
 
-        await documentsAPI.upload(formData)
-      }
+         const uploadResult = await documentsAPI.upload(formData)
+         
+         // Trigger CV parsing for CV documents
+         if (docType === 'cv') {
+           setCVParsing(prev => ({ ...prev, [fieldName]: true }))
+           setCVParseErrors(prev => ({ ...prev, [fieldName]: '' }))
+           try {
+             const parsedResult = await aiAPI.parseCV(uploadResult.id)
+             setCVParseResults(prev => ({ ...prev, [fieldName]: parsedResult }))
+             setCVParsing(prev => ({ ...prev, [fieldName]: false }))
+           } catch (parseError) {
+             console.error('CV parsing failed:', parseError)
+             setCVParseErrors(prev => ({ ...prev, [fieldName]: 'CV parsing failed. You may need to enter some details manually.' }))
+             setCVParsing(prev => ({ ...prev, [fieldName]: false }))
+           }
+         }
+       }
 
       toast.success('Application submitted successfully!')
       navigate(`/confirmation/${result.reference}`)
@@ -250,26 +268,91 @@ export default function ApplyPage() {
                 )
               })}
 
-            <div className="flex items-center justify-between pt-4 border-t">
-              <Link
-                to={`/jobs/${id}`}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="animate-spin h-4 w-4 mr-2" />
-                    Submitting...
-                  </>
-                ) : 'Submit Application'}
-              </button>
-            </div>
+             {/* CV Parsing Results */}
+             {Object.keys(cvParseResults).map(fieldName => {
+               const result = cvParseResults[fieldName];
+               const isParsing = cvParsing[fieldName];
+               const error = cvParseErrors[fieldName];
+               
+               if (!result && !isParsing && !error) return null;
+               
+               return (
+                 <div key={fieldName} className="mt-6 p-4 bg-blue-50 rounded-lg">
+                   {isParsing && (
+                     <div className="flex items-center space-x-3 mb-2">
+                       <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                       <span className="text-sm text-blue-600">Parsing CV...</span>
+                     </div>
+                   )}
+                   {!isParsing && error && (
+                     <div className="text-sm text-red-600">
+                       {error}
+                     </div>
+                   )}
+                   {!isParsing && result && (
+                     <>
+                       <div className="flex items-center space-x-3 mb-2">
+                         <Briefcase className="h-4 w-4 text-blue-500" />
+                         <span className="font-medium text-blue-800">CV Parsing Results</span>
+                       </div>
+                       <div className="space-y-2 text-sm">
+                         <div className="flex items-center">
+                           <span className="w-20 font-medium text-gray-600">Name:</span>
+                           <span className="text-gray-800">{result.parsed_json.full_name || 'N/A'}</span>
+                         </div>
+                         <div className="flex items-center">
+                           <span className="w-20 font-medium text-gray-600">Email:</span>
+                           <span className="text-gray-800">{result.parsed_json.email || 'N/A'}</span>
+                         </div>
+                         <div className="flex items-center">
+                           <span className="w-20 font-medium text-gray-600">Phone:</span>
+                           <span className="text-gray-800">{result.parsed_json.phone || 'N/A'}</span>
+                         </div>
+                         <div className="flex items-center">
+                           <span className="w-20 font-medium text-gray-600">Experience:</span>
+                           <span className="text-gray-800">
+                             {(result.experience_years ?? 0)} years
+                           </span>
+                         </div>
+                         <div className="flex items-center">
+                           <span className="w-20 font-medium text-gray-600">Skills:</span>
+                           <span className="text-gray-800">
+                             {result.skills.length > 0 ? result.skills.join(', ') : 'None detected'}
+                           </span>
+                         </div>
+                         <div className="flex items-center">
+                           <span className="w-20 font-medium text-gray-600">Confidence:</span>
+                           <span className="text-gray-800">
+                             {((result.confidence_score ?? 0) * 100).toFixed(0)}%
+                           </span>
+                         </div>
+                       </div>
+                     </>
+                   )}
+                 </div>
+               );
+             })}
+             
+             <div className="flex items-center justify-between pt-4 border-t">
+               <Link
+                 to={`/jobs/${id}`}
+                 className="text-gray-600 hover:text-gray-900"
+               >
+                 Cancel
+               </Link>
+               <button
+                 type="submit"
+                 disabled={isSubmitting}
+                 className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+               >
+                 {isSubmitting ? (
+                   <>
+                     <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                     Submitting...
+                   </>
+                 ) : 'Submit Application'}
+               </button>
+             </div>
           </form>
         </div>
       </div>
