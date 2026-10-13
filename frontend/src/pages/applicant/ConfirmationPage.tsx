@@ -5,16 +5,16 @@ export default function ConfirmationPage() {
   const { reference } = useParams()
 
   return (
-    <div className="min-h-screen bg-gray-50 py-16">
+    <div className="min-h-screen bg-gray-50 py-8 sm:py-16">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-lg shadow-md p-8 text-center">
+        <div className="bg-white rounded-lg shadow-md p-6 sm:p-8 text-center">
 
           {/* Success Icon */}
-          <div className="mb-6">
-            <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
+          <div className="mb-4 sm:mb-6">
+            <CheckCircle className="mx-auto h-12 sm:h-16 w-12 sm:w-16 text-green-500" />
           </div>
 
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
             Application Submitted Successfully!
           </h1>
           <p className="text-gray-600 mb-6">
@@ -22,16 +22,16 @@ export default function ConfirmationPage() {
           </p>
 
           {/* Reference Number */}
-          <div className="bg-gray-50 rounded-lg p-4 mb-8">
+          <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
             <p className="text-sm text-gray-500 mb-1">Your Reference Number</p>
-            <p className="text-2xl font-mono font-bold text-primary-600">{reference}</p>
+            <p className="text-xl sm:text-2xl font-mono font-bold text-primary-600">{reference}</p>
             <p className="text-xs text-gray-500 mt-2">
               Please save this reference number for future correspondence
             </p>
           </div>
 
           {/* What happens next */}
-          <div className="text-left mb-8">
+          <div className="text-left mb-6 sm:mb-8">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">What happens next?</h2>
             <div className="space-y-4">
               <div className="flex items-start gap-3">
@@ -59,7 +59,7 @@ export default function ConfirmationPage() {
           </div>
 
           {/* Info notes */}
-          <div className="flex flex-col gap-2 text-sm text-gray-500 mb-8">
+          <div className="flex flex-col gap-2 text-sm text-gray-500 mb-6 sm:mb-8">
             <div className="flex items-center justify-center gap-2">
               <Clock className="h-4 w-4" />
               <span>Review typically takes 5–10 business days</span>
@@ -73,7 +73,7 @@ export default function ConfirmationPage() {
           {/* Actions */}
           <Link
             to="/"
-            className="flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+            className="btn-responsive btn-full-mobile inline-flex items-center justify-center border border-transparent font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
           >
             <Home className="h-5 w-5 mr-2" />
             Browse More Jobs

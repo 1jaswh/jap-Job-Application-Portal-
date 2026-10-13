@@ -117,13 +117,60 @@ export default function JobsManagement() {
     )
   }
 
+  // Render job card for mobile view
+  const renderJobCard = (job: Job) => (
+    <div key={job.id} className={`bg-white rounded-lg shadow p-4 ${isExpired(job.deadline) ? 'bg-orange-50' : ''}`}>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center flex-wrap gap-2 mb-2">
+            <h3 className="font-semibold text-gray-900 truncate">{job.title}</h3>
+            {getStatusBadge(job)}
+          </div>
+          <p className="text-sm text-gray-500 mb-1">{job.department}</p>
+          <p className="text-sm text-gray-500 mb-2">{job.location}</p>
+          <p className={`text-sm ${isExpired(job.deadline) ? 'text-orange-600 font-medium' : 'text-gray-500'}`}>
+            Deadline: {new Date(job.deadline).toLocaleDateString()}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center justify-end gap-2 pt-3 border-t">
+        <button
+          onClick={() => handleToggleStatus(job)}
+          disabled={togglingId === job.id}
+          title={job.status === 'open' ? 'Close job' : 'Reopen job'}
+          className="text-gray-500 hover:text-gray-700 disabled:opacity-50 p-2"
+        >
+          {togglingId === job.id ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : job.status === 'open' ? (
+            <ToggleRight className="h-5 w-5 text-green-600" />
+          ) : (
+            <ToggleLeft className="h-5 w-5 text-gray-400" />
+          )}
+        </button>
+        <button
+          onClick={() => handleEdit(job)}
+          className="text-primary-600 hover:text-primary-900 p-2"
+        >
+          <Edit className="h-4 w-4" />
+        </button>
+        <button
+          onClick={() => handleDelete(job.id)}
+          className="text-red-600 hover:text-red-900 p-2"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  )
+
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Job Management</h1>
         <button
           onClick={handleCreate}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
+          className="btn-responsive inline-flex items-center border border-transparent font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
         >
           <Plus className="h-4 w-4 mr-2" />
           Create Job
@@ -150,78 +197,87 @@ export default function JobsManagement() {
         </div>
       )}
 
-      {/* Jobs Table */}
+      {/* Desktop Table View */}
       {!loading && !error && jobs.length > 0 && (
-        <div className="bg-white shadow overflow-hidden rounded-lg">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deadline</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {jobs.map((job) => (
-                <tr key={job.id} className={isExpired(job.deadline) ? 'bg-orange-50' : ''}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {job.title}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {job.department}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(job)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <span className={isExpired(job.deadline) ? 'text-orange-600 font-medium' : ''}>
-                      {new Date(job.deadline).toLocaleDateString()}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end gap-3">
-                      {/* ✅ Quick toggle open/closed */}
-                      <button
-                        onClick={() => handleToggleStatus(job)}
-                        disabled={togglingId === job.id}
-                        title={job.status === 'open' ? 'Close job' : 'Reopen job'}
-                        className="text-gray-500 hover:text-gray-700 disabled:opacity-50"
-                      >
-                        {togglingId === job.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : job.status === 'open' ? (
-                          <ToggleRight className="h-5 w-5 text-green-600" />
-                        ) : (
-                          <ToggleLeft className="h-5 w-5 text-gray-400" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleEdit(job)}
-                        className="text-primary-600 hover:text-primary-900"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(job.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
+        <div className="hidden lg:block">
+          <div className="bg-white shadow overflow-hidden rounded-lg">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deadline</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {jobs.map((job) => (
+                  <tr key={job.id} className={isExpired(job.deadline) ? 'bg-orange-50' : ''}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {job.title}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {job.department}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {getStatusBadge(job)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <span className={isExpired(job.deadline) ? 'text-orange-600 font-medium' : ''}>
+                        {new Date(job.deadline).toLocaleDateString()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex items-center justify-end gap-3">
+                        {/* ✅ Quick toggle open/closed */}
+                        <button
+                          onClick={() => handleToggleStatus(job)}
+                          disabled={togglingId === job.id}
+                          title={job.status === 'open' ? 'Close job' : 'Reopen job'}
+                          className="text-gray-500 hover:text-gray-700 disabled:opacity-50"
+                        >
+                          {togglingId === job.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : job.status === 'open' ? (
+                            <ToggleRight className="h-5 w-5 text-green-600" />
+                          ) : (
+                            <ToggleLeft className="h-5 w-5 text-gray-400" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleEdit(job)}
+                          className="text-primary-600 hover:text-primary-900"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(job.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Card View */}
+      {!loading && !error && jobs.length > 0 && (
+        <div className="lg:hidden space-y-4">
+          {jobs.map(renderJobCard)}
         </div>
       )}
 
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+          <div className="relative top-4 sm:top-20 mx-auto p-4 sm:p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white modal-responsive">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium text-gray-900">
                 {editingJob ? 'Edit Job' : 'Create Job'}
@@ -261,7 +317,7 @@ export default function JobsManagement() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-900"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
                   <input
@@ -298,13 +354,13 @@ export default function JobsManagement() {
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  className="btn-responsive px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
+                  className="btn-responsive px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
                 >
                   {editingJob ? 'Update' : 'Create'}
                 </button>

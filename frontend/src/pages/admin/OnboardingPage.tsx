@@ -112,7 +112,7 @@ export default function OnboardingPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Onboarding</h1>
         <span className="text-sm text-gray-500">{onboardings.length} record{onboardings.length !== 1 ? 's' : ''}</span>
       </div>
@@ -137,10 +137,10 @@ export default function OnboardingPage() {
             <div key={ob.id} className="bg-white rounded-lg shadow overflow-hidden">
               {/* Header row */}
               <div
-                className="p-6 cursor-pointer hover:bg-gray-50 flex items-center justify-between"
-                onClick={() => handleToggleExpand(ob.id)}
+                className="p-4 cursor-pointer hover:bg-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                onClick={() => !isEditing && handleToggleExpand(ob.id)}
               >
-                <div className="flex items-center gap-4 flex-1">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
                   {/* Avatar */}
                   <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
                     <User className="h-5 w-5 text-primary-600" />
@@ -148,21 +148,21 @@ export default function OnboardingPage() {
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 flex-wrap">
-                      <p className="font-semibold text-gray-900">
+                      <p className="font-semibold text-gray-900 truncate">
                         {ob.applicant?.full_name || `Applicant #${ob.applicant_id}`}
                       </p>
-                      <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${statusColors[ob.status] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${statusColors[ob.status] || 'bg-gray-100 text-gray-600'} whitespace-nowrap`}>
                         {ob.status.replace('_', ' ').charAt(0).toUpperCase() + ob.status.replace('_', ' ').slice(1)}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500 mt-0.5">
+                    <p className="text-sm text-gray-500 mt-0.5 truncate">
                       {ob.job?.title || `Job #${ob.job_id}`}
                       {ob.department && ` · ${ob.department}`}
                     </p>
                   </div>
 
-                  {/* Progress bar */}
-                  <div className="hidden md:block w-40">
+                  {/* Progress bar - hidden on mobile when collapsed, shown when expanded or on desktop */}
+                  <div className="hidden sm:block w-40">
                     <div className="flex justify-between text-xs text-gray-500 mb-1">
                       <span>Progress</span>
                       <span>{progress}%</span>
@@ -176,7 +176,7 @@ export default function OnboardingPage() {
                   </div>
                 </div>
 
-                <div className="ml-4 flex-shrink-0">
+                <div className="ml-4 flex-shrink-0 sm:ml-auto">
                   {isExpanded ? (
                     <ChevronUp className="h-5 w-5 text-gray-400" />
                   ) : (
@@ -187,10 +187,10 @@ export default function OnboardingPage() {
 
               {/* Expanded content */}
               {isExpanded && (
-                <div className="border-t px-6 py-6 space-y-6">
+                <div className="border-t px-4 py-4 sm:px-6 sm:py-6 space-y-6">
 
                   {/* Details section */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                     <div>
                       <h3 className="text-sm font-semibold text-gray-700 mb-3">Onboarding Details</h3>
                       {isEditing ? (

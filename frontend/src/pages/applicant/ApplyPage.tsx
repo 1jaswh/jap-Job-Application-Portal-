@@ -125,16 +125,18 @@ export default function ApplyPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
-        <span className="ml-2 text-gray-600">Loading...</span>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+          <span className="text-gray-600">Loading...</span>
+        </div>
       </div>
     )
   }
 
   if (error || !job) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
           <AlertCircle className="h-5 w-5" />
           <p>{error || 'Job not found'}</p>
@@ -156,19 +158,19 @@ export default function ApplyPage() {
       ]
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 py-6 sm:py-8">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <Link
           to={`/jobs/${id}`}
-          className="inline-flex items-center text-primary-600 hover:text-primary-700 mb-6"
+          className="inline-flex items-center text-primary-600 hover:text-primary-700 mb-4 sm:mb-6"
         >
           ← Back to Job Details
         </Link>
 
-        <div className="bg-white rounded-lg shadow-md p-8">
-          <div className="mb-8">
+        <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 lg:p-8">
+          <div className="mb-6 sm:mb-8">
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Apply for {job.title}</h1>
-            <div className="flex flex-wrap gap-4 text-sm text-gray-500">
+            <div className="flex flex-wrap gap-3 sm:gap-4 text-sm text-gray-500">
               <span className="flex items-center gap-1">
                 <Briefcase className="h-4 w-4" />
                 {job.department}
@@ -183,7 +185,7 @@ export default function ApplyPage() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 sm:space-y-6">
             {requirements
               .sort((a, b) => a.order - b.order)
               .map((req) => {
@@ -226,34 +228,37 @@ export default function ApplyPage() {
                     )}
 
                     {req.field_type === 'file' && (
-                      <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
-                        <div className="space-y-1 text-center">
-                          <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                          <div className="flex text-sm text-gray-600">
-                            <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary-600 hover:text-primary-500">
-                              <span>Upload a file</span>
-                              <input
-                                type="file"
-                                {...fieldRegistration}
-                                className="sr-only"
-                                accept=".pdf,.jpg,.jpeg,.png"
-                                onChange={(e) => {
-                                  fieldRegistration.onChange(e)
-                                  const file = e.target.files?.[0] || null
-                                  handleFileChange(req.field_name, file)
-                                }}
-                              />
-                            </label>
-                            <p className="pl-1">or drag and drop</p>
-                          </div>
-                          <p className="text-xs text-gray-500">
-                            PDF, JPG, PNG up to 5MB
-                          </p>
-                          {fileInputs[req.field_name] && (
-                            <p className="text-sm text-primary-600 font-medium">
-                              ✓ {fileInputs[req.field_name]?.name}
+                      <div className="mt-1">
+                        <div className="border-2 border-gray-300 border-dashed rounded-lg p-4 sm:p-6">
+                          <div className="space-y-3 text-center">
+                            <Upload className="mx-auto h-10 w-10 text-gray-400" />
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-sm text-gray-600">
+                              <label className="relative cursor-pointer bg-white rounded-md font-medium text-primary-600 hover:text-primary-500 px-3 py-1.5 border border-primary-300">
+                                <span>Upload a file</span>
+                                <input
+                                  type="file"
+                                  {...fieldRegistration}
+                                  className="sr-only"
+                                  accept=".pdf,.jpg,.jpeg,.png"
+                                  onChange={(e) => {
+                                    fieldRegistration.onChange(e)
+                                    const file = e.target.files?.[0] || null
+                                    handleFileChange(req.field_name, file)
+                                  }}
+                                />
+                              </label>
+                              <p className="text-gray-400">or drag and drop</p>
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              PDF, JPG, PNG up to 5MB
                             </p>
-                          )}
+                            {fileInputs[req.field_name] && (
+                              <p className="text-sm text-primary-600 font-medium flex items-center justify-center gap-1">
+                                <AlertCircle className="h-4 w-4 text-green-500" />
+                                ✓ {fileInputs[req.field_name]?.name}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -268,91 +273,91 @@ export default function ApplyPage() {
                 )
               })}
 
-             {/* CV Parsing Results */}
-             {Object.keys(cvParseResults).map(fieldName => {
-               const result = cvParseResults[fieldName];
-               const isParsing = cvParsing[fieldName];
-               const error = cvParseErrors[fieldName];
-               
-               if (!result && !isParsing && !error) return null;
-               
-               return (
-                 <div key={fieldName} className="mt-6 p-4 bg-blue-50 rounded-lg">
-                   {isParsing && (
-                     <div className="flex items-center space-x-3 mb-2">
-                       <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                       <span className="text-sm text-blue-600">Parsing CV...</span>
-                     </div>
-                   )}
-                   {!isParsing && error && (
-                     <div className="text-sm text-red-600">
-                       {error}
-                     </div>
-                   )}
-                   {!isParsing && result && (
-                     <>
-                       <div className="flex items-center space-x-3 mb-2">
-                         <Briefcase className="h-4 w-4 text-blue-500" />
-                         <span className="font-medium text-blue-800">CV Parsing Results</span>
-                       </div>
-                       <div className="space-y-2 text-sm">
-                         <div className="flex items-center">
-                           <span className="w-20 font-medium text-gray-600">Name:</span>
-                           <span className="text-gray-800">{result.parsed_json.full_name || 'N/A'}</span>
-                         </div>
-                         <div className="flex items-center">
-                           <span className="w-20 font-medium text-gray-600">Email:</span>
-                           <span className="text-gray-800">{result.parsed_json.email || 'N/A'}</span>
-                         </div>
-                         <div className="flex items-center">
-                           <span className="w-20 font-medium text-gray-600">Phone:</span>
-                           <span className="text-gray-800">{result.parsed_json.phone || 'N/A'}</span>
-                         </div>
-                         <div className="flex items-center">
-                           <span className="w-20 font-medium text-gray-600">Experience:</span>
-                           <span className="text-gray-800">
-                             {(result.experience_years ?? 0)} years
-                           </span>
-                         </div>
-                         <div className="flex items-center">
-                           <span className="w-20 font-medium text-gray-600">Skills:</span>
-                           <span className="text-gray-800">
-                             {result.skills.length > 0 ? result.skills.join(', ') : 'None detected'}
-                           </span>
-                         </div>
-                         <div className="flex items-center">
-                           <span className="w-20 font-medium text-gray-600">Confidence:</span>
-                           <span className="text-gray-800">
-                             {((result.confidence_score ?? 0) * 100).toFixed(0)}%
-                           </span>
-                         </div>
-                       </div>
-                     </>
-                   )}
-                 </div>
-               );
-             })}
-             
-             <div className="flex items-center justify-between pt-4 border-t">
-               <Link
-                 to={`/jobs/${id}`}
-                 className="text-gray-600 hover:text-gray-900"
-               >
-                 Cancel
-               </Link>
-               <button
-                 type="submit"
-                 disabled={isSubmitting}
-                 className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
-               >
-                 {isSubmitting ? (
-                   <>
-                     <Loader2 className="animate-spin h-4 w-4 mr-2" />
-                     Submitting...
-                   </>
-                 ) : 'Submit Application'}
-               </button>
-             </div>
+            {/* CV Parsing Results */}
+            {Object.keys(cvParseResults).map(fieldName => {
+              const result = cvParseResults[fieldName];
+              const isParsing = cvParsing[fieldName];
+              const error = cvParseErrors[fieldName];
+              
+              if (!result && !isParsing && !error) return null;
+              
+              return (
+                <div key={fieldName} className="mt-5 p-4 bg-blue-50 rounded-lg">
+                  {isParsing && (
+                    <div className="flex items-center space-x-3 mb-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                      <span className="text-sm text-blue-600">Parsing CV...</span>
+                    </div>
+                  )}
+                  {!isParsing && error && (
+                    <div className="text-sm text-red-600">
+                      {error}
+                    </div>
+                  )}
+                  {!isParsing && result && (
+                    <>
+                      <div className="flex items-center space-x-3 mb-3">
+                        <Briefcase className="h-4 w-4 text-blue-500" />
+                        <span className="font-medium text-blue-800">CV Parsing Results</span>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1">
+                          <span className="w-full sm:w-20 font-medium text-gray-600">Name:</span>
+                          <span className="text-gray-800">{result.parsed_json.full_name || 'N/A'}</span>
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1">
+                          <span className="w-full sm:w-20 font-medium text-gray-600">Email:</span>
+                          <span className="text-gray-800">{result.parsed_json.email || 'N/A'}</span>
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1">
+                          <span className="w-full sm:w-20 font-medium text-gray-600">Phone:</span>
+                          <span className="text-gray-800">{result.parsed_json.phone || 'N/A'}</span>
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1">
+                          <span className="w-full sm:w-20 font-medium text-gray-600">Experience:</span>
+                          <span className="text-gray-800">
+                            {(result.experience_years ?? 0)} years
+                          </span>
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1">
+                          <span className="w-full sm:w-20 font-medium text-gray-600">Skills:</span>
+                          <span className="text-gray-800">
+                            {result.skills.length > 0 ? result.skills.join(', ') : 'None detected'}
+                          </span>
+                        </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1">
+                          <span className="w-full sm:w-20 font-medium text-gray-600">Confidence:</span>
+                          <span className="text-gray-800">
+                            {((result.confidence_score ?? 0) * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+            
+            <div className="flex flex-col sm:flex-row items-center justify-between pt-4 border-t gap-3 sm:gap-4">
+              <Link
+                to={`/jobs/${id}`}
+                className="btn-responsive text-gray-600 hover:text-gray-900"
+              >
+                Cancel
+              </Link>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="btn-responsive btn-full-mobile inline-flex items-center justify-center border border-transparent font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="animate-spin h-4 w-4 mr-2" />
+                    Submitting...
+                  </>
+                ) : 'Submit Application'}
+              </button>
+            </div>
           </form>
         </div>
       </div>

@@ -79,8 +79,8 @@ export default function Dashboard() {
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
 
       {/* Stats Cards — Row 1 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow p-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center">
             <div className="p-2 bg-primary-100 rounded-md">
               <FileText className="h-6 w-6 text-primary-600" />
@@ -92,7 +92,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center">
             <div className="p-2 bg-green-100 rounded-md">
               <Users className="h-6 w-6 text-green-600" />
@@ -104,7 +104,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center">
             <div className="p-2 bg-yellow-100 rounded-md">
               <Clock className="h-6 w-6 text-yellow-600" />
@@ -116,7 +116,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center">
             <div className="p-2 bg-red-100 rounded-md">
               <AlertCircle className="h-6 w-6 text-red-600" />
@@ -130,8 +130,8 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards — Row 2 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow p-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center">
             <div className="p-2 bg-blue-100 rounded-md">
               <CheckCircle className="h-6 w-6 text-blue-600" />
@@ -143,7 +143,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center">
             <div className="p-2 bg-green-100 rounded-md">
               <Briefcase className="h-6 w-6 text-green-600" />
@@ -157,35 +157,35 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-4 sm:p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Link
             to="/admin/jobs"
-            className="flex items-center p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex flex-col sm:flex-row items-center p-4 border rounded-lg hover:bg-gray-50 transition-colors"
           >
-            <FileText className="h-8 w-8 text-primary-600 mr-3" />
-            <div>
+            <FileText className="h-8 w-8 text-primary-600 mb-2 sm:mb-0 sm:mr-3" />
+            <div className="text-center sm:text-left">
               <p className="font-medium text-gray-900">Manage Jobs</p>
               <p className="text-sm text-gray-500">Create, edit, or archive job postings</p>
             </div>
           </Link>
           <Link
             to="/admin/applications"
-            className="flex items-center p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex flex-col sm:flex-row items-center p-4 border rounded-lg hover:bg-gray-50 transition-colors"
           >
-            <Users className="h-8 w-8 text-green-600 mr-3" />
-            <div>
+            <Users className="h-8 w-8 text-green-600 mb-2 sm:mb-0 sm:mr-3" />
+            <div className="text-center sm:text-left">
               <p className="font-medium text-gray-900">Review Applications</p>
               <p className="text-sm text-gray-500">View and verify applicant submissions</p>
             </div>
           </Link>
           <Link
             to="/"
-            className="flex items-center p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex flex-col sm:flex-row items-center p-4 border rounded-lg hover:bg-gray-50 transition-colors"
           >
-            <LayoutDashboard className="h-8 w-8 text-purple-600 mr-3" />
-            <div>
+            <LayoutDashboard className="h-8 w-8 text-purple-600 mb-2 sm:mb-0 sm:mr-3" />
+            <div className="text-center sm:text-left">
               <p className="font-medium text-gray-900">View Portal</p>
               <p className="text-sm text-gray-500">See the public job listing page</p>
             </div>
